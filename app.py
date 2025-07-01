@@ -63,7 +63,7 @@ if os.path.exists(DATA_FILE):
             st.session_state.database = []
 
 # ---------- Tabs ----------
-tab1, tab2, tab3 = st.tabs(["➕ Add Resume", "🔍 Search Skills", "📋 View Database"])
+tab1, tab2, tab3, tab4 = st.tabs(["➕ Add Resume", "🔍 Search Skills", "📋 View Database", "🛠 Manage Resumes"])
 
 # ---------- Tab 1: Add Resume ----------
 with tab1:
@@ -90,19 +90,25 @@ with tab1:
 
     st.markdown("")
 
-    if st.button("✅ Add to Database") and name and resume_text:
-        skills = extract_skills(resume_text, COMMON_SKILLS)
-        entry = {
-            "name": name,
-            "resume": resume_text.lower(),
-            "skills": ", ".join(skills)
-        }
-        st.session_state.database.append(entry)
+    if st.button("✅ Add to Database"):
+        if not name or not resume_text:
+            st.warning("Please fill in both name and resume.")
+        elif any(entry["name"].lower() == name.lower() for entry in st.session_state.database):
+            st.error("🚫 An entry with this name already exists. Please use a unique name.")
+        else:
+            skills = extract_skills(resume_text, COMMON_SKILLS)
+            entry = {
+                "name": name,
+                "resume": resume_text.lower(),
+                "skills": ", ".join(skills)
+            }
+            st.session_state.database.append(entry)
 
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(st.session_state.database, f, indent=2)
+            with open(DATA_FILE, "w", encoding="utf-8") as f:
+                json.dump(st.session_state.database, f, indent=2)
 
-        st.success(f"{name} added with {len(skills)} skills detected.")
+            st.success(f"✅ {name} added with {len(skills)} skills detected.")
+
 
 # ---------- Tab 2: Search Skills ----------
 with tab2:
@@ -147,3 +153,57 @@ with tab3:
             )
         else:
             st.info("⚠️ No resumes added yet.")
+# ---------- Tab 4: Manage Resumes ----------
+with tab4:
+    st.markdown("### 🛠 Manage Resumes")
+    st.markdown("Update or delete an existing team member’s resume.")
+
+    if st.session_state.database:
+        names = [entry["name"] for entry in st.session_state.database]
+        selected_name = st.selectbox("Select Employee", names)
+
+        selected_index = next((i for i, entry in enumerate(st.session_state.database) if entry["name"] == selected_name), None)
+        if selected_index is not None:
+            current_entry = st.session_state.database[selected_index]
+
+            st.markdown(f"**Current Skills:** {current_entry['skills']}")
+            st.markdown("---")
+
+            action = st.radio("Choose Action", ["Update Resume", "Delete Resume"])
+
+            if action == "Update Resume":
+                update_method = st.radio("New input method", ["Paste text", "Upload PDF"], key="update_input_method")
+                updated_resume = ""
+
+                if update_method == "Paste text":
+                    updated_resume = st.text_area("Paste new resume text")
+                elif update_method == "Upload PDF":
+                    updated_file = st.file_uploader("Upload new PDF", type=["pdf"], key="update_file")
+                    if updated_file is not None:
+                        with fitz.open(stream=updated_file.read(), filetype="pdf") as doc:
+                            updated_resume = ""
+                            for page in doc:
+                                updated_resume += page.get_text()
+                        st.success("✅ New PDF text extracted!")
+
+                if st.button("🔄 Update"):
+                    new_skills = extract_skills(updated_resume, COMMON_SKILLS)
+                    st.session_state.database[selected_index] = {
+                        "name": selected_name,
+                        "resume": updated_resume.lower(),
+                        "skills": ", ".join(new_skills)
+                    }
+                    with open(DATA_FILE, "w", encoding="utf-8") as f:
+                        json.dump(st.session_state.database, f, indent=2)
+                    st.success(f"✅ {selected_name}'s resume was updated with {len(new_skills)} skills.")
+
+            elif action == "Delete Resume":
+                confirm_delete = st.checkbox(f"⚠️ I confirm I want to delete {selected_name}'s resume")
+                if confirm_delete:
+                    if st.button("🗑️ Confirm Delete"):
+                        del st.session_state.database[selected_index]
+                        with open(DATA_FILE, "w", encoding="utf-8") as f:
+                            json.dump(st.session_state.database, f, indent=2)
+                        st.success(f"❌ {selected_name}'s resume has been deleted. Refresh the page to update the list.")
+
+        st.info("No resumes available to manage. Add some first.")
