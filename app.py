@@ -1,3 +1,4 @@
+import plotly.express as px
 import json
 import os
 import streamlit as st
@@ -63,7 +64,10 @@ if os.path.exists(DATA_FILE):
             st.session_state.database = []
 
 # ---------- Tabs ----------
-tab1, tab2, tab3, tab4 = st.tabs(["➕ Add Resume", "🔍 Search Skills", "📋 View Database", "🛠 Manage Resumes"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "➕ Add Resume", "🔍 Search Skills", "📋 View Database",
+    "🛠 Manage Resumes", "📊 Dashboard"
+])
 
 # ---------- Tab 1: Add Resume ----------
 with tab1:
@@ -207,3 +211,31 @@ with tab4:
                         st.success(f"❌ {selected_name}'s resume has been deleted. Refresh the page to update the list.")
 
         st.info("No resumes available to manage. Add some first.")
+# ---------- Tab 5: Dashboard ----------
+with tab5:
+    st.markdown("### 📊 Skills Dashboard")
+    st.markdown("Visualize the most common skills across the team.")
+
+    if st.session_state.database:
+        all_skills = []
+        for entry in st.session_state.database:
+            all_skills.extend([s.strip() for s in entry["skills"].split(",") if s.strip()])
+
+        if all_skills:
+            df_skills = pd.DataFrame(all_skills, columns=["Skill"])
+            skill_counts = df_skills["Skill"].value_counts().reset_index()
+            skill_counts.columns = ["Skill", "Count"]
+
+            # Bar Chart: Top Skills
+            st.subheader("Top 10 Skills (Bar Chart)")
+            fig_bar = px.bar(skill_counts.head(10), x="Skill", y="Count", color="Skill", title="Most Common Skills")
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+            # Pie Chart: Skill Share
+            st.subheader("Skill Distribution (Pie Chart)")
+            fig_pie = px.pie(skill_counts, names="Skill", values="Count", title="Skill Share in Team")
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.warning("No skills found to visualize.")
+    else:
+        st.info("No data available. Add resumes first.")
